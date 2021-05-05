@@ -1,0 +1,48 @@
+#! /bin/bash
+### Set name.
+#SBATCH --job-name=%(name)s
+### Redirect stdout and stderr.
+#SBATCH --output=%(logfile)s
+#SBATCH --error=%(errfile)s
+### Let later steps append their logs to the output and error files.
+#SBATCH --open-mode=append
+### Set partition.
+#SBATCH --partition=%(partition)s
+### Set quality-of-service group.
+#SBATCH --qos=%(qos)s
+### Set memory limit.
+#SBATCH --mem-per-cpu=%(memory_per_cpu)s
+### Number of tasks.
+#SBATCH --array=0-%(num_tasks)d
+### Adjustment to priority ([-2147483645, 2147483645]).
+#SBATCH --nice=%(nice)s
+### Send mail? Mail type can be e.g. NONE, END, FAIL, ARRAY_TASKS.
+#SBATCH --mail-type=%(mailtype)s
+#SBATCH --mail-user=%(mailuser)s
+### Extra options
+%(extra_options)s
+
+%(environment_setup)s
+
+ulimit -Sv %(soft_memory_limit)d
+
+declare -a DUMP_PATHS=( %(dump_paths)s )
+
+DUMP_PATH=${DUMP_PATHS[$SLURM_ARRAY_TASK_ID]}
+
+(
+%(python)s grid_test.py --evaluate "$DUMP_PATH/dump"
+RETCODE=$?
+if [[ $RETCODE != 0 ]]; then
+    >&2 echo "The run script finished with exit code $RETCODE"
+fi
+# redirect output of grid_test to dump directory
+) > "$DUMP_PATH/driver.log" 2> "$DUMP_PATH/driver.err"
+
+# Delete empty driver files.
+if [[ ! -s "$DUMP_PATH/driver.log" ]]; then
+    rm "$DUMP_PATH/driver.log"
+fi
+if [[ ! -s "$DUMP_PATH/driver.err" ]]; then
+    rm "$DUMP_PATH/driver.err"
+fi
